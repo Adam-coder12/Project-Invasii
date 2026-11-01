@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <title>Invasii - The Invasive Species Identifier</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Georgia', serif;
+            background: linear-gradient(180deg, #1a2e1a 0%, #0d1f0d 100%);
+            color: #d4e8d4;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 16px;
+        }
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 400;
+            font-style: oblique;
+            margin-bottom: 20px;
+            color: #a8d5a2;
+            letter-spacing: 1px;
+            text-align: center;
+        }
+        #start-btn {
+            background: linear-gradient(135deg, #2d5a27, #4a7c3f);
+            color: #e8f5e8;
+            border: 1px solid #5a9a4a;
+            padding: 14px 40px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 30px;
+            cursor: pointer;
+            margin-bottom: 24px;
+            transition: transform 0.1s;
+            box-shadow: 0 4px 16px rgba(45, 90, 39, 0.5);
+        }
+        #start-btn:active { transform: scale(0.96); }
+        #start-btn.hidden { display: none; }
+        #webcam-container {
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            margin-bottom: 20px;
+            border: 2px solid #3a6b33;
+        }
+        #webcam-container canvas {
+            display: block;
+            border-radius: 14px;
+        }
+        #label-container {
+            width: 100%;
+            max-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        #label-container div {
+            background: rgba(30, 60, 30, 0.6);
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            border: 1px solid rgba(90, 154, 74, 0.3);
+            transition: background 0.3s, border-color 0.3s;
+        }
+        #label-container div.best {
+            background: rgba(74, 124, 63, 0.4);
+            border-color: #7bc46a;
+            color: #c8f0c0;
+        }
+    </style>
+</head>
+<body>
+<h1>Invasii</h1>
+<button id="start-btn" onclick="init()">Start Camera</button>
+<div id="webcam-container"></div>
+<div id="label-container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+<script>
+const URL = "https://teachablemachine.withgoogle.com/models/ql8UVS0Rk/";
+let model, webcam, labelContainer, maxPredictions, lastPrediction = 0;
+
+async function init() {
+    document.getElementById("start-btn").classList.add("hidden");
+    const modelURL = URL + "model.json";
+    const metadataURL = URL + "metadata.json";
+    model = await tmImage.load(modelURL, metadataURL);
+    maxPredictions = model.getTotalClasses();
+
+    const flip = false;
+    webcam = new tmImage.Webcam(200, 200, flip);
+    await webcam.setup({ facingMode: { exact: "environment" } });
+    await webcam.play();
+    requestAnimationFrame(loop);
+
+    document.getElementById("webcam-container").appendChild(webcam.canvas);
+    labelContainer = document.getElementById("label-container");
+    for (let i = 0; i < maxPredictions; i++) {
+        labelContainer.appendChild(document.createElement("div"));
+    }
+}
+
+async function loop(timestamp) {
+    webcam.update();
+    if (timestamp - lastPrediction > 150) {
+        await predict();
+        lastPrediction = timestamp;
+    }
+    requestAnimationFrame(loop);
+}
+
+async function predict() {
+    const prediction = await model.predict(webcam.canvas);
+    let bestIdx = 0;
+    for (let i = 0; i < maxPredictions; i++) {
+        if (prediction[i].probability > prediction[bestIdx].probability) bestIdx = i;
+    }
+    for (let i = 0; i < maxPredictions; i++) {
+        const el = labelContainer.childNodes[i];
+        el.textContent = prediction[i].className + "  " + (prediction[i].probability * 100).toFixed(0) + "%";
+        el.classList.toggle("best", i === bestIdx);
+    }
+}
+</script>
+</body>
+</html>   
